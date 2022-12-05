@@ -13,7 +13,7 @@ using namespace cv;
 using namespace std;
 using namespace std::chrono;
 
-const int mySizes[2] = { 1000,1000 };
+const int mySizes[3] = {0,1000,1000 };
 const int stepx[] = { -1,0,1,-1,1,-1,0,1 };
 const int stepy[] = { -1,-1,-1,0,0,1,1,1 };
 Mat img;
@@ -22,6 +22,14 @@ struct point {
     int x;
     int y;
     int value;
+    point() {
+        x = -1;
+        y = -1;
+    }
+    point(int nx, int ny) {
+        x = nx;
+        y = ny;
+    }
 };
 
 void read_txt() {
@@ -60,9 +68,13 @@ void add_queue(queue<point>& a, queue<point>& b) {
         b.pop();
     }
 }
+
+queue<point> copy_queue(const std::queue<point>& Q) {
+    queue<point>Q2 = Q;
+    return Q2;
+}
 queue<point> list_of_candidate;
-queue<point> relate_area(point root) {
-    queue <point> new_candidate;
+void relate_area(point root) {
     sign_matrix[root.x][root.y] = 0;
     queue <point> que;
     que.push(root);
@@ -87,20 +99,49 @@ queue<point> relate_area(point root) {
 
         }
         if (cnt > 0)
-            new_candidate.push(current);
+            list_of_candidate.push(current);
     }
-    return new_candidate;
+}
+void zeros_hull() {
+    list<point> zeros_hull;
+    for (int i = 0; i < M; i++)
+        for (int j = 0; j < N; j++)
+            if (img.at<short>(i, j) == 0) {
+                short no_relate_area = 0;
+                short relate_area = 0;
+                for (int d = 0; d < 8; d++) {
+                    int x = i + stepx[d];
+                    int y = j + stepy[d];
+                    point newpoint(x, y);
+                    if (!valid(newpoint)) continue;
+                    if (img.at<short>(x, y) != 0 &&img.at<short>(x, y) != relate_area) {
+                        relate_area = img.at<short>(x, y);
+                        no_relate_area++;
+                    }
+                }
+                if (no_relate_area == 0) sign_matrix[i][j] = -1;
+                else if (no_relate_area == 1) {
+                    point current(i, j);
+                    current.value = relate_area;
+                    sign_matrix[i][j] = 1;
+                    zeros_hull.push_back(current);
+                }
+                else
+                    sign_matrix[i][j] = -2;
+            }
+    for (auto pt : zeros_hull) {
+        img.at<short>(pt.x, pt.y) = pt.value;
+        list_of_candidate.push(pt);
+    }
+
 }
 
-void clust_into_area() {
+void clust_into_area(){
     for (int i = 0; i < M; i++)
         for (int j = 0; j < N; j++)
             if (sign_matrix[i][j] == -1 && img.at<short>(i,j) > 0) {
-                point main_point;
-                main_point.x = i;
-                main_point.y = j;
-                queue<point> area = relate_area(main_point);
-                add_queue(list_of_candidate, area);
+                point main_point(i,j);
+                relate_area(main_point);
             }
 }
 queue<point> dilate(queue<point>& lt_candidate, int time_of_dilate) {
@@ -117,10 +158,9 @@ queue<point> dilate(queue<point>& lt_candidate, int time_of_dilate) {
         for (int i = 0; i < 8; i++) {
             int nx = x + stepx[i];
             int ny = y + stepy[i];
-            point new_point;
-            new_point.x = nx;
-            new_point.y = ny;
+            point new_point(nx,ny);
             if (!valid(new_point)) continue;
+            //if (img.at<short>(nx, ny) != 0) continue;
             if (sign_matrix[nx][ny] == -2 || sign_matrix[nx][ny] == 0) continue;
             if (sign_matrix[nx][ny] == -1) {
                 sign_matrix[nx][ny] = time_of_dilate;
@@ -136,39 +176,53 @@ queue<point> dilate(queue<point>& lt_candidate, int time_of_dilate) {
     }
     return new_candidate;
 }
-void dilate() {
-    int time_cur = 1;
+void dilate(int time_cur) {
+    int sum = 0;
     while (time_cur < K + 1) {
         queue<point> new_candidate = dilate(list_of_candidate, time_cur);
         if (new_candidate.empty()) break;
-        //cout << time_cur << " " << new_candidate.size() << endl;
+        cout << time_cur+1 << " " << new_candidate.size() << endl;
         //print2DArray(image);
+        //list_of_candidate =  copy_queue( new_candidate);
+        auto start = high_resolution_clock::now();
         add_queue(list_of_candidate, new_candidate);
+        auto stop = high_resolution_clock::now();
+        auto duration = duration_cast<microseconds>(stop - start);
+
+        sum += duration.count();
         time_cur++;
     }
+
+    cout << "Time taken by add: "
+        << sum << " microseconds" << endl;
 }
-
-
 
 
 int main() {
     read();
     M = img.rows;
     N = img.cols;
-    fill(*sign_matrix, *sign_matrix + M * N, -1);
     Mat raw_image = img.clone();
-    clust_into_area();
 
     auto start = high_resolution_clock::now();
-    dilate();
+    fill(*sign_matrix, *sign_matrix + M * N, 0);
+    //clust_into_area();
+
+    zeros_hull();
+    cout << "1 " << list_of_candidate.size() << endl;
+
+
+    dilate(1);
 
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
+
+
     cout << "Time taken by function: "
         << duration.count() << " microseconds" << endl;
 
     imshow("Display window", img);
-    imwrite("./output.tif", img);
+    imwrite("output_c.tif", img);
     int k = waitKey();
 }
 
