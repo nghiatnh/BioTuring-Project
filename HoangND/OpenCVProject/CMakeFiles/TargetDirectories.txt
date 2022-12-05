@@ -1,0 +1,3 @@
+/home/nghiatnh/Study/BioTuring/Projects/BioTuring-Project/HoangND/OpenCVProject/CMakeFiles/DisplayImage.dir
+/home/nghiatnh/Study/BioTuring/Projects/BioTuring-Project/HoangND/OpenCVProject/CMakeFiles/edit_cache.dir
+/home/nghiatnh/Study/BioTuring/Projects/BioTuring-Project/HoangND/OpenCVProject/CMakeFiles/rebuild_cache.dir
