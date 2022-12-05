@@ -4,10 +4,10 @@
 #include <time.h>
 
 #define is_valid(x, y) (x >= 0 && x <= this->M - 1 && y >= 0 && y <= this->N - 1)
-#define to_position(x, y) (x * this->N + y)
-#define get_point(pos, x, y) \
-    x = pos / this->N;       \
-    y = pos % this->N;
+// #define to_position(x, y) (x * this->N + y)
+// #define get_point(pos, x, y) \
+//     x = pos / this->N;       \
+//     y = pos % this->N;
 #define NOT_CHECK 0
 #define CHECKED 1
 #define dirs_size 8
@@ -43,7 +43,6 @@ private:
     int M, N, K;
     Mat input;
     Mat output;
-    set<int> removed_candidates;
     Mat checked_list;
 
     vector<Candidate> search_first_areas_and_dilate(Mat input)
@@ -102,11 +101,11 @@ private:
                 if (is_valid(x, y) && input.at<short>(x, y) == 0 && this->checked_list.at<short>(x, y) != CHECKED)
                 {
                     bool is_conflict = false;
-                    Candidate neighbor;
+                    // Candidate neighbor;
                     for (auto dir1 : dirs)
                     {
-                        neighbor  = Candidate(x + dir1[0], y + dir1[1], input.at<short>(x + dir1[0], y + dir1[1]));
-                        if (is_valid(neighbor.x, neighbor.y) && neighbor.value != 0 && neighbor.value != candidate.value)
+                        // neighbor  = Candidate(x + dir1[0], y + dir1[1], input.at<short>(x + dir1[0], y + dir1[1]));
+                        if (is_valid(x + dir1[0], y + dir1[1]) && input.at<short>(x + dir1[0], y + dir1[1]) != 0 && input.at<short>(x + dir1[0], y + dir1[1]) != candidate.value)
                         {
                             is_conflict = true;
                             break;
@@ -209,9 +208,6 @@ int main(int argc, char const *argv[])
     clock_t stop = clock();
     cout << "execution time: " << (float)(stop - start) / CLOCKS_PER_SEC << endl;
     // cout << output << endl;
-    // Mat img_rbg;
-    // cvtColor(output, img_rbg, COLOR_GRAY2BGR555);
-    // imwrite(argv[2], output);
     imshow("img Name", output);
     waitKey(0);
 
