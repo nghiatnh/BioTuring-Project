@@ -13,31 +13,52 @@ using namespace cv;
 using namespace std;
 using namespace std::chrono;
 
-const int mySizes[3] = {0,1000,1000 };
 const int stepx[] = { -1,0,1,-1,1,-1,0,1 };
 const int stepy[] = { -1,-1,-1,0,0,1,1,1 };
 Mat img;
+Mat sign_mat;
+
+int N, M, time_consumt=0;
 
 struct point {
     int x;
     int y;
-    int value;
+    short value;
+    int sign;
     point() {
         x = -1;
         y = -1;
+        sign = -1;
     }
     point(int nx, int ny) {
         x = nx;
         y = ny;
+        sign = -1;
     }
 };
 
+queue<point> find_block(int size_of_block){
+    queue<point> result;
+    for (int i=0;i<=M/size_of_block;i++)
+        for (int j=0;j<=N/size_of_block;j++){
+            point index_point(i,j);
+            int range_x = (i+1)*size_of_block;
+            int range_y = (j+1)*size_of_block;
+            int cnt = 0;
+            for (int x = i*size_of_block;x<range_x;x++)
+                for (int y = j*size_of_block;y<range_y;y++)
+                    if (img.at<short>(x,y)==0) cnt++;
+            if (cnt>0) 
+                result.push(index_point);
+        }
+    return(result);
+}
 
 int read()
 {
-    string image_path = samples::findFile("G:\\bioturingVietNam\\Image\\data\\00.tif");
-
+    string image_path = samples::findFile("00.tif");
     img = imread(image_path, IMREAD_ANYCOLOR | IMREAD_ANYDEPTH);
+    sign_mat = Mat::zeros(img.rows, img.cols, CV_64FC1);
     if (img.empty())
     {
         cout << "Could not read the image: " << image_path << std::endl;
@@ -46,10 +67,6 @@ int read()
     //imshow("Display window", img);
     return 0;
 }
-
-
-int N, M, time_consumt=0;
-int sign_matrix[1000][1000];
 
 bool valid(point a) {
     if (a.x < 0 || a.y < 0) return false;
@@ -67,7 +84,7 @@ void add_queue(queue<point>& a, queue<point>& b) {
 
 queue<point> list_of_candidate;
 void relate_area(point root) {
-    sign_matrix[root.x][root.y] = 0;
+    sign_mat.at<int>(root.x,root.y);
     queue <point> que;
     que.push(root);
     while (!que.empty()) {
@@ -79,13 +96,14 @@ void relate_area(point root) {
             next_point.x = current.x + stepx[i];
             next_point.y = current.y + stepy[i];
             if (!valid(next_point)) continue;
-            if (sign_matrix[next_point.x][next_point.y] != -1) continue;
+            if (sign_mat.at<int>(next_point.x,next_point.y) != -1) continue;
             if (img.at<short>(next_point.x,next_point.y) == 0) {
                 cnt++;
                 continue;
             }
             if (img.at<short>(next_point.x, next_point.y) == img.at<short>(root.x, root.y)) {
-                sign_matrix[next_point.x][next_point.y] = 0;
+                sign_mat.at<int>(next_point.x,next_point.y) = 0;
+                next_point.sign = 0;
                 que.push(next_point);
             }
 
@@ -94,10 +112,10 @@ void relate_area(point root) {
             list_of_candidate.push(current);
     }
 }
-void zeros_hull() {
+void zeros_hull(int Start_x, int Start_y, int M, int N) {
     list<point> zeros_hull;
-    for (int i = 0; i < M; i++)
-        for (int j = 0; j < N; j++)
+    for (int i = Start_x; i < M; i++)
+        for (int j = Start_y; j < N; j++)
             if (img.at<short>(i, j) == 0) {
                 short no_relate_area = 0;
                 short relate_area = 0;
@@ -111,15 +129,16 @@ void zeros_hull() {
                         no_relate_area++;
                     }
                 }
-                if (no_relate_area == 0) sign_matrix[i][j] = -1;
+                if (no_relate_area == 0) sign_mat.at<int>(i,j)=-1;//sign_matrix[i][j] = -1;
                 else if (no_relate_area == 1) {
                     point current(i, j);
                     current.value = relate_area;
-                    sign_matrix[i][j] = 1;
+                    sign_mat.at<int>(i,j)=1;
+                    current.sign = 1;
                     zeros_hull.push_back(current);
                 }
                 else
-                    sign_matrix[i][j] = -2;
+                    sign_mat.at<int>(i,j)=-2;
             }
     for (auto pt : zeros_hull) {
         img.at<short>(pt.x, pt.y) = pt.value;
@@ -131,7 +150,8 @@ void zeros_hull() {
 void clust_into_area(){
     for (int i = 0; i < M; i++)
         for (int j = 0; j < N; j++)
-            if (sign_matrix[i][j] == -1 && img.at<short>(i,j) > 0) {
+            //if (sign_matrix[i][j] == -1 && img.at<short>(i,j) > 0) {
+            if (sign_mat.at<int>(i,j)==-1&&img.at<short>(i,j) > 0) {
                 point main_point(i,j);
                 relate_area(main_point);
             }
@@ -143,7 +163,7 @@ queue<point> dilate(queue<point>& lt_candidate, int time_of_dilate) {
         lt_candidate.pop();
         int x = current.x;
         int y = current.y;
-        if (sign_matrix[x][y] == -2) {
+        if (sign_mat.at<int>(x,y) == -2) {
             img.at<short>(x, y) = 0;
             continue;
         }
@@ -152,17 +172,16 @@ queue<point> dilate(queue<point>& lt_candidate, int time_of_dilate) {
             int ny = y + stepy[i];
             point new_point(nx,ny);
             if (!valid(new_point)) continue;
-            //if (sign_matrix[nx][ny] == -2 || sign_matrix[nx][ny] == 0) continue;
-            if (sign_matrix[nx][ny] == -1) {
-                sign_matrix[nx][ny] = time_of_dilate;
+            //if (sign_matrix[nx][ny] == -1) {
+            if (sign_mat.at<int>(nx,ny)==-1){
+                sign_mat.at<int>(nx,ny) = time_of_dilate;
                 img.at<short>(nx, ny) = img.at<short>(x, y);
                 new_candidate.push(new_point);
                 continue;
             }
-            //if (sign_matrix[nx][ny] != time_of_dilate) continue;
-            //if (img.at<short>(nx, ny) == img.at<short>(x, y)) continue;
-            if (sign_matrix[nx][ny] > 0 && img.at<short>(nx, ny) != img.at<short>(x, y)) {
-                sign_matrix[nx][ny] = -2;
+            //if (sign_matrix[nx][ny] > 0 && img.at<short>(nx, ny) != img.at<short>(x, y)) {
+            if (sign_mat.at<int>(nx,ny)>0&&img.at<short>(nx, ny) != img.at<short>(x, y))  {
+                sign_mat.at<int>(nx,ny) = -2;
                 lt_candidate.push(new_point);
             }
         }
@@ -191,26 +210,26 @@ int main() {
 
 
     auto start = high_resolution_clock::now();
-    fill(*sign_matrix, *sign_matrix + M * N, 0);
 
     //Method 1
     //clust_into_area();
 
     //Method 2
-    zeros_hull();
+    zeros_hull(0,0,M,N);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "1. Time: " << duration.count() << endl;
-    time_consumt += duration.count();
+    //time_consumt += duration.count();
     dilate(1,1000);
-
+    stop = high_resolution_clock::now();
+    duration = duration_cast<microseconds>(stop - start);
     
 
 
     cout << "Time taken by method: "
-        << time_consumt << " microseconds" << endl;
+        << duration.count() << " microseconds" << endl;
 
-    imshow("Display window", img);
+    //imshow("Display window", img);
     imwrite("output_c.tif", img);
-    int k = waitKey();
+    //int k = waitKey();
 }
