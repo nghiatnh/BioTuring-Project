@@ -32,11 +32,6 @@ struct point {
     }
 };
 
-void read_txt() {
-    Mat m;
-    FileStorage fs("myfile.txt", FileStorage::READ);
-    fs["mat1"] >> m;
-}
 
 int read()
 {
@@ -52,7 +47,8 @@ int read()
     return 0;
 }
 
-int N, M, K = 1000;
+
+int N, M, time_consumt=0;
 int sign_matrix[1000][1000];
 
 bool valid(point a) {
@@ -69,10 +65,6 @@ void add_queue(queue<point>& a, queue<point>& b) {
     }
 }
 
-queue<point> copy_queue(const std::queue<point>& Q) {
-    queue<point>Q2 = Q;
-    return Q2;
-}
 queue<point> list_of_candidate;
 void relate_area(point root) {
     sign_matrix[root.x][root.y] = 0;
@@ -160,41 +152,34 @@ queue<point> dilate(queue<point>& lt_candidate, int time_of_dilate) {
             int ny = y + stepy[i];
             point new_point(nx,ny);
             if (!valid(new_point)) continue;
-            //if (img.at<short>(nx, ny) != 0) continue;
-            if (sign_matrix[nx][ny] == -2 || sign_matrix[nx][ny] == 0) continue;
+            //if (sign_matrix[nx][ny] == -2 || sign_matrix[nx][ny] == 0) continue;
             if (sign_matrix[nx][ny] == -1) {
                 sign_matrix[nx][ny] = time_of_dilate;
                 img.at<short>(nx, ny) = img.at<short>(x, y);
                 new_candidate.push(new_point);
                 continue;
             }
-            if (sign_matrix[nx][ny] != time_of_dilate) continue;
-            if (img.at<short>(nx, ny) == img.at<short>(x, y)) continue;
-            sign_matrix[nx][ny] = -2;
-            lt_candidate.push(new_point);
+            //if (sign_matrix[nx][ny] != time_of_dilate) continue;
+            //if (img.at<short>(nx, ny) == img.at<short>(x, y)) continue;
+            if (sign_matrix[nx][ny] > 0 && img.at<short>(nx, ny) != img.at<short>(x, y)) {
+                sign_matrix[nx][ny] = -2;
+                lt_candidate.push(new_point);
+            }
         }
     }
     return new_candidate;
 }
-void dilate(int time_cur) {
-    int sum = 0;
+void dilate(int time_cur,int K) {
     while (time_cur < K + 1) {
-        queue<point> new_candidate = dilate(list_of_candidate, time_cur);
-        if (new_candidate.empty()) break;
-        cout << time_cur+1 << " " << new_candidate.size() << endl;
-        //print2DArray(image);
-        //list_of_candidate =  copy_queue( new_candidate);
         auto start = high_resolution_clock::now();
-        add_queue(list_of_candidate, new_candidate);
+        queue<point> new_candidate = dilate(list_of_candidate, time_cur);
         auto stop = high_resolution_clock::now();
         auto duration = duration_cast<microseconds>(stop - start);
-
-        sum += duration.count();
+        if (new_candidate.empty()) break;
+        cout << time_cur+1 << ". Time: " << duration.count() << endl;
+        add_queue(list_of_candidate, new_candidate);
         time_cur++;
     }
-
-    cout << "Time taken by add: "
-        << sum << " microseconds" << endl;
 }
 
 
@@ -204,26 +189,28 @@ int main() {
     N = img.cols;
     Mat raw_image = img.clone();
 
+
     auto start = high_resolution_clock::now();
     fill(*sign_matrix, *sign_matrix + M * N, 0);
+
+    //Method 1
     //clust_into_area();
 
+    //Method 2
     zeros_hull();
-    cout << "1 " << list_of_candidate.size() << endl;
-
-
-    dilate(1);
-
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
+    cout << "1. Time: " << duration.count() << endl;
+    time_consumt += duration.count();
+    dilate(1,1000);
+
+    
 
 
-    cout << "Time taken by function: "
-        << duration.count() << " microseconds" << endl;
+    cout << "Time taken by method: "
+        << time_consumt << " microseconds" << endl;
 
     imshow("Display window", img);
     imwrite("output_c.tif", img);
     int k = waitKey();
 }
-
-
